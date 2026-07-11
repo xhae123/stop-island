@@ -1,0 +1,12 @@
+.DS_Store
+.idea/
+*.local
+.local/
+node_modules/
+venv/
+__pycache__/
+*.pyc
+*.db
+dist/
+.env
+uploads/
