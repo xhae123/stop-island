@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scenarios</title>
+<style>
+:root{
+  --bg:#f4f5f7; --surface:#ffffff; --ink:#1a1d21; --muted:#697386; --line:#dfe3e8; --edge:#c4cad4;
+  --given:#697386; --when:#175cd3; --then:#067647; --then-bg:#f0faf4;
+  --accent:#175cd3; --chip:#eef1f4; --vp:rgba(23,92,211,.08);
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#0b0d10; --surface:#171a1f; --ink:#e6e8eb; --muted:#8a94a6; --line:#272c34; --edge:#3a4250;
+    --given:#8a94a6; --when:#6ea8ff; --then:#4ccb8f; --then-bg:#12271b; --accent:#6ea8ff; --chip:#212630; --vp:rgba(110,168,255,.12); }
+}
+:root[data-theme="light"]{
+  --bg:#f4f5f7; --surface:#ffffff; --ink:#1a1d21; --muted:#697386; --line:#dfe3e8; --edge:#c4cad4;
+  --given:#697386; --when:#175cd3; --then:#067647; --then-bg:#f0faf4; --accent:#175cd3; --chip:#eef1f4; --vp:rgba(23,92,211,.08);
+}
+:root[data-theme="dark"]{
+  --bg:#0b0d10; --surface:#171a1f; --ink:#e6e8eb; --muted:#8a94a6; --line:#272c34; --edge:#3a4250;
+  --given:#8a94a6; --when:#6ea8ff; --then:#4ccb8f; --then-bg:#12271b; --accent:#6ea8ff; --chip:#212630; --vp:rgba(110,168,255,.12);
+}
+*{box-sizing:border-box}
+@media (prefers-reduced-motion: reduce){ *{transition:none !important} }
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink); display:flex; flex-direction:column; overflow:hidden;
+  font:14px/1.55 -apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Noto Sans KR",Roboto,sans-serif;
+  -webkit-font-smoothing:antialiased;
+}
+.mono{font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+
+/* ── top bar ── */
+.bar{
+  flex:none; display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:9px 14px; background:var(--surface); border-bottom:1px solid var(--line); z-index:20;
+}
+.bar h1{font-size:14.5px; margin:0 4px 0 0; font-weight:700; letter-spacing:-.01em}
+.bar .meta{font-size:12px; color:var(--muted); font-variant-numeric:tabular-nums}
+.search{
+  display:flex; align-items:center; gap:7px; flex:0 1 280px; min-width:160px;
+  background:var(--bg); border:1px solid var(--line); border-radius:7px; padding:5px 10px;
+}
+.search:focus-within{border-color:var(--accent)}
+.search svg{flex:none; color:var(--muted)}
+.search input{flex:1; min-width:50px; border:0; background:none; color:var(--ink); font:inherit; outline:none}
+.search .hits{font-size:11.5px; color:var(--muted); white-space:nowrap; font-variant-numeric:tabular-nums}
+.search .clear{display:none; border:0; background:none; color:var(--muted); cursor:pointer; padding:0 2px}
+.search.active .clear{display:block}
+button.ctl{
+  font:inherit; font-size:12.5px; cursor:pointer; color:var(--ink);
+  background:var(--surface); border:1px solid var(--line); border-radius:7px; padding:5px 10px;
+}
+button.ctl:hover{background:var(--chip)}
+button.ctl[aria-pressed="true"]{background:var(--chip); border-color:var(--muted)}
+button.ctl:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.spacer{flex:1}
+.legend{display:flex; gap:11px; font-size:11.5px; color:var(--muted)}
+.legend span{display:inline-flex; gap:5px; align-items:center}
+.dot{width:8px;height:8px;border-radius:2px}
+
+/* ── canvas ── */
+.canvas{flex:1; overflow:hidden; position:relative; touch-action:none}
+.canvas.grab{cursor:grab}
+.canvas.panning{cursor:grabbing}
+.world{position:absolute; top:0; left:0; transform-origin:0 0; will-change:transform}
+.stage{position:relative; width:max-content; padding:40px}
+svg.edges{position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none}
+svg.edges path{fill:none; stroke:var(--edge); stroke-width:1.5}
+
+/* tree layout */
+.branch{display:flex; align-items:center}
+.kids{display:flex; flex-direction:column; gap:10px; margin-left:46px}
+.branch.collapsed > .kids{display:none}
+
+.nbox{
+  flex:none; position:relative; background:var(--surface); border:1px solid var(--line); border-radius:9px;
+  padding:7px 12px; max-width:240px; cursor:pointer; user-select:none;
+}
+.nbox:hover{border-color:var(--muted)}
+.nbox:focus-visible{outline:2px solid var(--accent); outline-offset:1px}
+.nbox .nid{font-size:10.5px; color:var(--muted)}
+.nbox .ntitle{font-weight:650; font-size:13px; line-height:1.35; text-wrap:balance}
+.nbox .count{
+  position:absolute; top:-9px; right:-7px; font-size:10px; color:var(--muted);
+  background:var(--chip); border:1px solid var(--line); border-radius:99px; padding:0 6px;
+  font-variant-numeric:tabular-nums;
+}
+.branch.collapsed > .nbox{border-style:dashed}
+.branch.collapsed > .nbox .count{color:var(--accent); border-color:var(--accent)}
+.branch[data-depth="0"] > .nbox{border-width:1.5px; border-color:var(--ink); max-width:260px}
+.nbox .ngiven{margin:4px 0 0; padding:4px 0 0; border-top:1px dashed var(--line); display:grid; gap:1px}
+.nbox .ngiven div{font-size:11px; color:var(--muted); line-height:1.4}
+.nbox .ngiven div::before{content:"G "; color:var(--given); font-weight:700; font-size:9.5px}
+.detail-off .nbox .ngiven{display:none}
+.detail-off .nbox{max-width:210px}
+
+.card{
+  position:relative; background:var(--surface); border:1px solid var(--line); border-radius:9px;
+  padding:8px 12px; width:360px;
+}
+.card .chead{display:flex; gap:7px; align-items:baseline; flex-wrap:wrap}
+.sid{flex:none; font-size:10.5px; color:var(--muted); background:var(--chip); border:0; border-radius:4px; padding:1px 6px; cursor:pointer}
+.sid:hover{color:var(--ink)}
+.sid:focus-visible{outline:2px solid var(--accent)}
+.stitle{font-weight:650; font-size:13px; line-height:1.35}
+.refs{display:flex; gap:4px; flex-wrap:wrap; margin-left:auto}
+.ref{font-size:9.5px; color:var(--muted); border:1px solid var(--line); border-radius:99px; padding:0 5px}
+.gwt{margin-top:7px; display:grid; gap:5px}
+.glabel{font-size:9px; font-weight:800; letter-spacing:.08em; font-family:ui-monospace,monospace}
+.gblock{padding:1px 0 1px 10px; border-left:2px dashed var(--line); display:grid; gap:1px}
+.gblock .glabel{color:var(--given)}
+.gblock div{font-size:11.5px; color:var(--muted); line-height:1.45}
+.wblock{padding:2px 0 2px 10px; border-left:3px solid var(--when)}
+.wblock .glabel{color:var(--when)}
+.wblock p{margin:0; font-size:13px; font-weight:550; line-height:1.45}
+.tblock{background:var(--then-bg); border-radius:7px; padding:5px 10px 6px; display:grid; gap:1px}
+.tblock .glabel{color:var(--then)}
+.tblock div{font-size:12.5px; line-height:1.5; display:flex; gap:7px}
+.tblock div::before{content:"→"; color:var(--then); flex:none; font-weight:700}
+.detail-off .gwt, .detail-off .refs{display:none}
+.detail-off .card{width:280px}
+.card.flash{border-color:var(--accent); box-shadow:0 0 0 1.5px var(--accent)}
+
+.dimmable .dim{opacity:.13}
+.card.hit{border-color:var(--accent)}
+.nbox.onpath{border-color:var(--accent)}
+
+/* ── floating controls (figma-style, bottom-right) ── */
+.fab{
+  position:absolute; right:14px; bottom:14px; z-index:20; display:flex; flex-direction:column; gap:8px; align-items:flex-end;
+}
+.minimap{
+  width:190px; background:var(--surface); border:1px solid var(--line); border-radius:9px;
+  position:relative; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,.10); cursor:pointer;
+}
+.minimap canvas{display:block; width:100%}
+.minimap .vp{position:absolute; border:1.5px solid var(--accent); background:var(--vp); pointer-events:none; border-radius:2px}
+.zoombar{
+  display:flex; align-items:center; background:var(--surface); border:1px solid var(--line);
+  border-radius:9px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,.10);
+}
+.zoombar button{border:0; background:none; color:var(--ink); font:inherit; font-size:14px; cursor:pointer; padding:6px 11px}
+.zoombar button:hover{background:var(--chip)}
+.zoombar .zv{font-size:11.5px; color:var(--muted); min-width:44px; text-align:center; font-variant-numeric:tabular-nums; cursor:pointer}
+.zoombar .fit{font-size:11.5px; font-weight:600; border-left:1px solid var(--line)}
+
+.hint{
+  position:absolute; left:14px; bottom:14px; z-index:20; font-size:11.5px; color:var(--muted);
+  background:var(--surface); border:1px solid var(--line); border-radius:8px; padding:5px 11px;
+  box-shadow:0 4px 16px rgba(0,0,0,.08);
+}
+kbd{font-family:ui-monospace,monospace; font-size:10.5px; background:var(--chip); border:1px solid var(--line); border-radius:4px; padding:0 4px}
+.empty{position:absolute; top:70px; left:50%; transform:translateX(-50%); color:var(--muted); display:none; z-index:20}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1 id="title">Scenarios</h1>
+  <span class="meta" id="stats"></span>
+  <div class="search" id="searchbox">
+    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="7" cy="7" r="5.2" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3.4 3.4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <input id="q" type="search" placeholder="Search  /" aria-label="Search scenarios">
+    <span class="hits" id="hits"></span>
+    <button class="clear" id="clearq" aria-label="Clear">✕</button>
+  </div>
+  <button class="ctl" id="expandAll">Expand all</button>
+  <button class="ctl" id="collapseAll">Collapse</button>
+  <button class="ctl" id="detailToggle" aria-pressed="true">Details</button>
+  <button class="ctl" id="copySvg" title="Copy the visible diagram as SVG — paste directly into Figma">Copy SVG</button>
+  <span class="spacer"></span>
+  <div class="legend" aria-hidden="true">
+    <span><span class="dot" style="background:var(--given)"></span>given</span>
+    <span><span class="dot" style="background:var(--when)"></span>when</span>
+    <span><span class="dot" style="background:var(--then)"></span>then</span>
+  </div>
+</div>
+
+<div class="canvas grab" id="canvas">
+  <div class="world" id="world">
+    <div class="stage" id="stage">
+      <svg class="edges" id="edges" aria-hidden="true"></svg>
+      <div id="tree"></div>
+    </div>
+  </div>
+  <p class="empty" id="empty">No matching scenarios.</p>
+  <div class="hint">drag = pan · wheel/pinch = zoom · click node = fold · <kbd>1</kbd> fit <kbd>0</kbd> 100%</div>
+  <div class="fab">
+    <div class="minimap" id="minimap"><canvas id="mmc"></canvas><div class="vp" id="mmvp"></div></div>
+    <div class="zoombar">
+      <button id="zoomOut" aria-label="Zoom out">−</button>
+      <span class="zv" id="zoomVal" title="Reset to 100%">100%</span>
+      <button id="zoomIn" aria-label="Zoom in">+</button>
+      <button class="fit" id="zoomFit">Fit</button>
+    </div>
+  </div>
+</div>
+
+<script id="data" type="application/json">{"meta": {"project": "멈춰, 섬!", "purpose": "유저 관점 전체 기능 흐름 — 비개발자용 진입점. 구현된 웹 플로우를 그대로 반영", "detail_spec": "00-overview.md 결정표(D-00~D-29) + 01~07 상세 시나리오", "one_liner": "자리마다 QR. 찍으면 도착 → 영수증 1장으로 인증 → 이 자리 확정. 방명록은 누구나."}, "root": {"id": "J0", "title": "공통 배경 — 모든 시나리오의 뿌리", "given": ["2026년 9/30~10/6, 행궁동 공방거리 팝업 라운지. 좌석은 A1~B3 여섯 개", "손님은 폰 브라우저로 이용한다 — 앱 설치 없음, 로그인 없음, 이름도 안 물어봄", "자리마다 고유 QR이 붙어 있다. 서비스는 오직 그 QR로만 시작된다 — QR 없이 들어오면 \"QR을 찍어 시작하세요\" 안내뿐", "공간은 무인으로 운영된다 — 운영진은 현장에 없고 원격으로만 지켜본다. 모든 절차는 그 자리에서 즉시 끝난다", "\"나\"라는 구분은 폰(브라우저)이 조용히 기억한다. 폰을 바꾸면 새 손님으로 취급", "규칙은 단 하나: 참여 상점의 오늘 영수증 1장 = 오늘 하루 이 자리 이용권"], "children": [{"id": "J1", "title": "발견 — QR 게이트를 지나 내 자리에 도착", "given": ["거리에서 자리마다 붙은 QR 코드를 발견했다"], "children": [{"id": "J1.1", "title": "QR 게이트 — 자리 QR로만 들어올 수 있다", "note": "QR 없이 사이트에 들어오면 메인·예약·방명록이 아예 안 보이고 온보딩만 뜬다. 유일한 다음 행동은 '자리 QR 스캔'.", "scenarios": [{"id": "J1.1-1", "status": "done", "title": "QR 없이 들어오면 온보딩만", "given": ["주소창 직접 입력·공유 링크 등으로 자리 QR 없이 사이트를 열었다 (예약 보유도 아님)"], "when": "사이트가 뜬다", "then": ["풀스크린으로 \"테이블의 QR을 찍어 시작해주세요\"만 보인다", "현황·[이 자리 잡기]·방명록·햄버거 메뉴는 전부 숨겨진다 — 조작할 게 없다", "실제 다음 행동은 하나뿐, 앉고 싶은 자리의 QR을 폰으로 찍는 것"], "refs": ["MAIN-701", "MAIN-704"]}, {"id": "J1.1-2", "status": "done", "title": "예약 보유자는 QR 없이 열어도 통과", "given": ["방금 어느 자리를 예약했다 (폰이 그 예약을 기억한다)"], "when": "QR 없이 사이트를 다시 연다 (앱 재오픈·공유 링크)", "then": ["게이트에 막히지 않고 바로 \"이용 중\" 화면으로 — 자기 예약을 잃지 않는다", "예약이 이미 끝났으면 조용히 정리하고 \"QR을 다시 찍어주세요\"로 안내"], "refs": ["MAIN-703"]}], "given": [], "subtree_count": 2}, {"id": "J1.2", "title": "도착 — 자리 QR을 찍으면 열리는 첫 화면", "given": [{"앉고 싶은 자리(예": "A3)의 QR을 찍어 `/#/?seat=a3`로 들어왔다"}], "scenarios": [{"id": "J1.2-1", "status": "done", "title": "도착 화면이 뜬다", "when": "화면이 열린다", "then": ["\"QR 스캔 완료\" 배지 + \"당신의 자리 · A3\"(크게) + \"4인석 · 창가 자리\"", "화면 위쪽에 흐름 프로그레스가 뜬다 — 자리 → 인증 → 예약 → 착석 (지금은 \"자리\" 단계)", "[이 자리 잡기] 버튼을 누르면 갈림길 없이 곧바로 영수증 인증으로 간다", "아래에 \"지금 빈 자리 N석 · 오늘 N명 방문\" 현황 한 줄 (30초마다 저절로 갱신)"], "refs": ["MAIN-601", "MAIN-702", "MAIN-801", "MAIN-401"], "given": []}, {"id": "J1.2-2", "status": "done", "title": "지금 만석이어도 이 자리는 잡을 수 있다", "given": ["전체는 만석이지만 내가 찍은 자리 A3 자체는 비어 있다"], "when": "도착 화면을 본다", "then": ["현황 한 줄은 \"빈 자리 0석\"이라 해도 [이 자리 잡기]는 그대로 눌린다", "인증을 미리 해두고 이 자리를 잡으라는 뜻 — 인증과 자리 점유는 별개"], "refs": ["MAIN-203", "MAIN-405"]}, {"id": "J1.2-3", "status": "done", "title": "신호가 나쁨", "given": ["골목이라 데이터가 잘 안 터진다"], "when": "도착 화면이 열린다", "then": ["자리 라벨·값 문구·버튼은 멀쩡히 보인다", "현황 한 줄만 \"현황을 불러오지 못했어요\"였다가 신호가 돌아오면 저절로 채워진다", "화면 전체가 죽는 일은 없다"], "refs": ["MAIN-204", "MAIN-205", "MAIN-501", "MAIN-502"]}, {"id": "J1.2-4", "status": "done", "title": "내가 찍은 자리가 이미 사용 중", "given": ["찍은 자리 A3에 이미 다른 사람 예약이 있거나(사용 중) 오늘 안 여는 자리다(운영 중지)"], "when": "도착 화면이 열린다", "then": ["\"이 자리(A3)는 지금 사용 중이에요\" + \"지금 N석 비어 있어요 — 빈 자리의 QR을 찍어주세요\"", "[이 자리 잡기] 버튼은 안 보인다 — 다른 빈자리는 그 자리 QR을 찍어야 잡을 수 있다"], "refs": ["MAIN-602"]}, {"id": "J1.2-5", "status": "done", "title": "구석구석 둘러보기", "when": "오른쪽 위 햄버거 메뉴(≡)를 누른다", "then": ["서랍이 열리고 메인 / 메뉴 선택 / 방명록으로 바로 갈 수 있다", "인증·예약 화면은 서랍에 없다 — 예약 흐름 안에서만 나온다"], "refs": ["MAIN-403", "MAIN-802"], "given": []}], "subtree_count": 5}, {"id": "J1.3", "title": "갈림길(메뉴 선택) — 이제 주 흐름 밖, 햄버거로만 온다", "note": "도착 화면 CTA가 인증으로 직행하면서 예약 퍼널에서 빠졌다. 이 화면은 햄버거 메뉴로만 도달한다(둘러보기용).", "given": ["햄버거 메뉴에서 \"메뉴 선택\"으로 들어왔다"], "scenarios": [{"id": "J1.3-1", "status": "done", "title": "두 갈래를 본다", "when": "화면이 열린다", "then": ["[테이블 예약 — 영수증 인증 후 이 자리 예약] / [방명록 작성 — 후기·맛집 공유] 카드 2개", "아래에 참여 상점 배지(\"막걸리계보\", \"조준영 목공방\" … +12개) — 어디서 사 먹으면 되는지 여기서 알 수 있다"], "refs": ["MENU-101", "MENU-301"], "given": []}, {"id": "J1.3-2", "status": "done", "title": "카드를 누르면 바로 이동", "when": "카드를 누른다", "then": ["고르고 확인하는 단계 없이 즉시 다음 화면으로", "[테이블 예약] → 영수증 인증 / [방명록 작성] → 방명록 (방명록은 인증 불필요)"], "refs": ["MENU-201", "MENU-202"], "given": []}, {"id": "J1.3-3", "status": "done", "title": "상점 목록이 안 뜸", "given": ["상점 정보를 못 불러왔다 (준비 전이거나 오류)"], "when": "화면이 열린다", "then": ["\"참여 상점을 준비 중이에요\" 또는 \"불러오지 못했어요\"만 그 자리에 표시", "예약·방명록 카드는 정상 동작한다"], "refs": ["MENU-303", "MENU-304"]}], "subtree_count": 3}], "subtree_count": 10}, {"id": "J2", "title": "이 자리 잡기 — 인증부터 확정까지", "given": ["도착 화면에서 [이 자리 잡기]를 눌러 영수증 인증 화면에 왔다 (메뉴 갈림길은 건너뜀)", "화면 구성: 안내문 + 사진 올리는 박스 + \"또는 상점 직접 선택\" 드롭다운 + [인증하기] + \"인증은 하루 1회만 가능합니다\""], "children": [{"id": "J2.1", "title": "영수증 사진으로 인증", "given": ["오늘 참여 상점에서 결제한 영수증이 손에 있다"], "children": [{"id": "J2.1-upload", "title": "사진 올리기 자체", "scenarios": [{"id": "J2.1-1", "status": "done", "title": "찍거나 고르거나", "when": "박스를 누른다", "then": ["카메라로 바로 찍거나 갤러리에서 고를 수 있다", "올리면 박스 안에 미리보기. X를 누르면 지우고 다시 올릴 수 있다"], "refs": ["VF-201", "VF-206", "VF-207"], "given": []}, {"id": "J2.1-2", "status": "done", "title": "안 받아주는 파일", "when": "사진이 아닌 파일, 10MB 넘는 사진, 깨진 파일, 아이폰 HEIC를 올린다", "then": ["서버로 보내기도 전에 그 자리에서 \"JPG/PNG, 10MB 이하만 가능해요\"류 안내"], "refs": ["VF-202", "VF-203", "VF-204", "VF-205"], "given": []}], "given": [], "subtree_count": 2}, {"id": "J2.1a", "title": "잘 읽히면 — \"이거 맞아요?\" 되묻고 확인받는다", "note": "이 확인 단계(recognized/confirm)와 사업자번호로 가게를 알아보는 매칭은 화면상 설계·구현됐으나 실 OCR 2회 호출 백엔드는 아직 — 현재 프론트 시뮬레이션. 그래서 status 미마킹.", "given": ["올린 영수증이 잘 읽혔다 (가게·결제 일시·금액·승인번호를 뽑아냄)"], "scenarios": [{"id": "J2.1a-1", "title": "읽은 정보를 보여주고 확인받는다", "when": "[인증하기]를 누르고 몇 초 기다린다", "then": ["바로 통과시키지 않고 \"이거 맞아요?\" 확인 화면을 띄운다 — 가게(상호명) · 결제 일시(시간까지) · 결제 금액 · 승인번호 뒷자리", "가게는 영수증의 사업자등록번호로 정확히 알아본다 (상호명 표기가 흔들려도 맞게 잡음)", "[네, 맞아요 · 인증하기] / [아니요, 직접 선택할게요] 두 버튼"], "refs": ["VF-301", "VF-304"], "given": []}, {"id": "J2.1a-2", "title": "[네, 맞아요] → 인증 완료 → 예약으로", "when": "\"네, 맞아요\"를 누른다", "then": ["인증이 확정되고 곧바로 \"이 자리 예약하기\" 확정 화면으로 넘어간다", "상단에 \"{가게} 영수증 인증 완료\" 배너. 이 인증은 폰이 기억한다 — 오늘 안에는 다시 할 필요 없다"], "refs": ["VF-302"], "given": []}, {"id": "J2.1a-3", "title": "[아니요] → 직접 선택으로", "given": ["OCR이 읽은 가게가 실제와 다르다고 판단했다"], "when": "\"아니요, 직접 선택할게요\"를 누른다", "then": ["확인 화면을 닫고 상점 직접 선택으로 넘어간다 (→ J2.2)"], "refs": ["VF-303"]}], "subtree_count": 3}, {"id": "J2.1b", "title": "거절당함 — 영수증 자체가 자격 미달 (확인 없이 즉시 거부)", "given": ["올린 영수증에 문제가 있다"], "note": "공통 결과: 이유가 화면에 뜨고, 사진은 남아 있고, 몇 번이든 재시도 가능 (거절은 하루 1회에 안 쳐진다) [VF-409]", "scenarios": [{"id": "J2.1b-1", "status": "done", "title": "어제(옛날) 영수증", "when": "인증한다", "then": ["\"오늘 결제한 영수증만 인정돼요 (영수증 날짜: …)\""], "refs": ["VF-401"], "given": []}, {"id": "J2.1b-2", "status": "done", "title": "참여 안 하는 가게", "given": ["프랜차이즈 등 목록에 없는 가게 영수증"], "when": "인증한다", "then": ["\"참여 상점의 영수증이 아니에요\" — 참여 상점 목록을 다시 안내"], "refs": ["VF-402"]}, {"id": "J2.1b-3", "status": "done", "title": "이미 쓴 영수증", "given": ["나 또는 친구가 이미 이 영수증으로 인증했다 (공유받은 사진 포함)"], "when": "인증한다", "then": ["\"이미 사용된 영수증이에요\" — 각도를 바꿔 다시 찍어도 승인번호로 같은 결과"], "refs": ["VF-403", "VF-404", "SYS-502"]}, {"id": "J2.1b-4", "title": "금액이 너무 적음", "given": ["참여 상점 당일 영수증이지만 결제 금액이 최소 결제금액(📌 5,000원) 미만"], "when": "인증한다", "then": ["확인 화면 없이 \"최소 결제금액(5,000원) 이상 영수증만 인정돼요\"", "소액 결제로 자리를 점유하는 어뷰징을 막는 장치 (금액값·상점별 차등은 서버 설정)"], "refs": ["VF-410"]}], "subtree_count": 4}, {"id": "J2.1c", "title": "다시 찍어달래 — 못 읽으면 상점 직접 선택으로 유도", "scenarios": [{"id": "J2.1c-1", "status": "done", "title": "영수증이 아닌 사진", "when": "풍경/셀카 등을 올리고 인증한다", "then": ["\"영수증 사진이 아닌 것 같아요\"", "재촬영도 되지만, 결제한 상점을 직접 고를 수도 있게 안내한다 (→ J2.2)"], "refs": ["VF-405"], "given": []}, {"id": "J2.1c-2", "status": "done", "title": "흐릿해서 가게 이름을 못 읽음", "when": "인증한다", "then": ["\"영수증을 잘 못 읽었어요. 결제한 참여 상점을 골라주세요\" — 상점 직접 선택으로 전환 (→ J2.2)"], "refs": ["VF-406"], "given": []}], "given": [], "subtree_count": 2}, {"id": "J2.1d", "title": "시스템이 아픔 — 자동 판독 불가", "scenarios": [{"id": "J2.1d-1", "status": "done", "title": "판독 서비스 장애", "given": ["자동 판독이 계속 실패한다 (외부 서비스 문제)"], "when": "인증을 시도한다", "then": ["\"사진 인증이 지금 어려워요. 아래에서 상점을 직접 선택해주세요\"", "J2.2로 자연스럽게 갈아탄다 — 장애 중에도 사람 기다림 없이 완결"], "refs": ["VF-701", "VF-702", "SYS-704"]}, {"id": "J2.1d-2", "status": "done", "title": "내 신호가 끊김", "when": "올리는 도중 데이터가 끊긴다", "then": ["\"네트워크 연결을 확인해주세요\" — 사진은 남아 있어서 버튼만 다시 누르면 된다"], "refs": ["VF-704"], "given": []}], "given": [], "subtree_count": 2}], "subtree_count": 13}, {"id": "J2.2", "title": "가게 직접 고르기 (사진 없이 가는 폴백)", "given": ["사진 인증이 안 되거나, 확인 화면에서 [아니요]를 눌렀거나, 처음부터 직접 고르고 싶다"], "scenarios": [{"id": "J2.2-1", "status": "done", "title": "직접 선택 → 바로 통과", "when": "드롭다운에서 가게를 고르고 \"이 상점으로 인증\"을 누른다", "then": ["확인 화면·기다림 없이 바로 \"이 자리 예약하기\" 확정 화면으로 — 무인 공간이라 눈앞 확인 절차가 없다", "다만 이 방식은 전부 \"확인 필요\"로 기록되어 운영진이 사후에 들여다본다"], "refs": ["VF-601"], "given": []}, {"id": "J2.2-2", "status": "done", "title": "거짓 선택의 뒤탈", "given": ["실제로는 아무것도 사지 않고 가게만 골라 통과했다"], "when": "운영진이 원격 감사에서 어뷰징으로 판정한다", "then": ["인증이 무효 처리되고 잡아둔 예약도 풀린다 — 억울하면 진짜 영수증으로 다시 인증하면 된다", "무료 좌석 7일 팝업 — 시스템은 관용적이지만 기록은 남는다"], "refs": ["VF-504", "ADM-212", "SYS-505"]}, {"id": "J2.2-3", "status": "done", "title": "아무것도 안 하고 인증 누름", "when": "사진도 없고 가게도 안 고르고 [인증하기]", "then": ["\"영수증 사진을 올리거나 상점을 선택해주세요\" — 버튼이 애초에 안 눌린다"], "refs": ["VF-604"], "given": []}], "subtree_count": 3}, {"id": "J2.3", "title": "하루 1번 규칙", "given": ["인증의 \"성공\"은 하루에 1번만 쳐준다 (실패·재시도는 무제한)"], "scenarios": [{"id": "J2.3-1", "status": "done", "title": "이미 인증한 날 다시 오면", "when": "오늘 인증을 이미 성공한 상태로 인증 화면에 다시 온다", "then": ["업로드 폼 대신 \"오늘 인증 완료\" 상태 화면", "[좌석 선택으로] 버튼으로 바로 진행. 두 번 인증할 필요도, 방법도 없다"], "refs": ["VF-102", "VF-801", "MENU-205"], "given": []}, {"id": "J2.3-2", "status": "done", "title": "밤 12시가 지나면", "when": "자정(한국 시간)이 넘는다", "then": ["어제의 인증은 끝. 오늘 영수증으로 새로 인증해야 한다"], "refs": ["VF-803", "VF-103"], "given": []}], "subtree_count": 2}, {"id": "J2.4", "title": "이 자리 확정 — 고르는 게 아니라 찍은 자리를 확정한다", "given": ["인증을 통과해 예약 화면에 왔다. 상단에 \"{가게} 영수증 인증 완료\" 배너", "화면엔 내가 찍은 자리 하나만 나온다 — 그리드에서 고르는 게 아니다 (자리 = QR, D-26)"], "scenarios": [{"id": "J2.4-1", "status": "done", "title": "내가 찍은 자리 하나가 보인다", "when": "화면을 본다", "then": ["그리드가 아니라 내가 찍은 자리 하나만 나온다 — \"A3 · 4인석 · 창가 자리\" + [이 자리(A3) 예약하기]", "이 자리 상태도 30초마다 저절로 최신으로 바뀐다"], "refs": ["RSV-201", "RSV-401"], "given": []}, {"id": "J2.4-2", "status": "done", "title": "이 자리가 사용 중이면", "given": ["내가 찍은 자리 A3가 이미 사용 중이거나 운영 중지 상태다"], "when": "화면을 본다", "then": ["\"이 자리(A3)는 지금 사용 중이에요\" + 전체 빈 자리 현황 + \"빈 자리의 QR을 찍어주세요\"", "[이 자리 예약하기] 버튼은 안 나온다 — 다른 자리로 갈아타려면 그 자리 QR을 찍어야 한다"], "refs": ["RSV-202", "RSV-203"]}, {"id": "J2.4-3", "status": "done", "title": "확정 성공", "given": ["내가 찍은 자리가 비어 있어 예약할 수 있다"], "when": "[이 자리(A3) 예약하기]를 누른다", "then": ["예약 완료 화면이 뜬다 — 내 자리 확정 (→ J3)"], "refs": ["RSV-501"]}, {"id": "J2.4-4", "status": "done", "title": "찰나의 차이로 패배", "given": ["다른 손님이 같은 A3 QR을 찍고 거의 동시에 확정을 눌렀다"], "when": "확정을 누른다", "then": ["한 명만 성공한다", "진 쪽은 \"아쉽지만 방금 다른 분이 먼저 예약했어요\" + \"다른 빈 자리의 QR을 찍어주세요\"(다시 고르는 그리드는 없다)"], "refs": ["RSV-502", "RSV-406", "SYS-401"]}, {"id": "J2.4-5", "status": "done", "title": "버튼 연타 / 응답이 안 옴", "when": "급해서 두 번 누르거나, 눌렀는데 신호가 끊겨 결과를 못 받았다", "then": ["예약이 두 개 생기는 일은 절대 없다", "다시 누르면 \"이미 예약돼 있네요\" 하고 내 완료 화면을 보여준다"], "refs": ["RSV-504", "RSV-505", "RSV-506"], "given": []}, {"id": "J2.4-6", "status": "done", "title": "밤 12시를 넘겨버림", "given": ["예약 화면을 켜둔 채 자정이 지났다"], "when": "확정을 누른다", "then": ["\"인증이 만료되었어요. 오늘 영수증으로 다시 인증해주세요\""], "refs": ["RSV-503"]}, {"id": "J2.4-7", "status": "done", "title": "순서·자리를 건너뛰려 하면", "when": "링크 공유 등으로 예약 화면 주소에 직접 들어간다", "then": ["인증을 안 했으면 인증 화면으로 돌려보낸다", "인증은 했어도 좌석 QR 맥락이 없으면(공유 링크) \"현장 좌석의 QR을 찍어주세요\"로 안내한다", "순서도 자리도 건너뛸 수 없다"], "refs": ["RSV-101", "RSV-103", "RSV-106"], "given": []}], "subtree_count": 7}], "subtree_count": 25}, {"id": "J3", "title": "내 자리에서 — 이용, 떠나기, 다시 오기", "given": ["예약 완료 화면이 떠 있다: \"A3 · 4인석 · 창가 자리 / 16:42까지 이용 가능 (남은 시간 1시간 58분)\" + [자리 비우기] [방명록 쓰기]"], "children": [{"id": "J3.1", "title": "완료 화면이 기대치를 알려준다", "scenarios": [{"id": "J3.1-1", "status": "done", "title": "자동 정리 · 알림 없음 · 다시 잡기 가능", "when": "완료 화면을 본다", "then": ["자리·인원·만료 시각·남은 시간이 보이고, 아래에 3줄 안내: \"시간이 되면 자동으로 정리돼요 · 따로 알림은 가지 않아요 · 시간 안에 다시 잡을 수 있어요\"", "이게 유일한 고지다 — 나가는 손님에게 '곧 종료' 문자·푸시는 보내지 않는다 (무알림 자동 만료, D-27)", "화면은 본인 확인용이다. QR·종이 티켓 없음 — 무인 공간이라 제시할 상대가 없다"], "refs": ["RSV-601"], "given": []}], "given": [], "subtree_count": 1}, {"id": "J3.2", "title": "내 자리 확인은 셀프", "scenarios": [{"id": "J3.2-1", "status": "done", "title": "자리가 겹쳤을 때", "given": ["무인 공간이라 지켜보는 사람이 없고, 누가 내 예약 자리에 앉아 있다"], "when": "이 화면(좌석 라벨·이용 시간)을 보여주며 양해를 구한다", "then": ["화면이 내 자리의 근거가 된다 — 검사 없는 명예 시스템", "정리가 안 되면 다른 빈자리를 예약하면 된다 (자리 비우기 → 재예약)"], "refs": ["RSV-601"]}, {"id": "J3.2-2", "status": "done", "title": "폰을 닫았다 켜도", "when": "브라우저를 닫거나 폰을 껐다가 다시 들어온다", "then": ["메인이 \"이용 중 · A3 · [내 자리 보기]\"를 최우선으로 보여준다", "증빙을 잃지 않는다"], "refs": ["MAIN-301", "RSV-607", "MAIN-505"], "given": []}], "given": [], "subtree_count": 2}, {"id": "J3.3", "title": "시간은 2시간 (알림 없이 자동 만료)", "scenarios": [{"id": "J3.3-1", "status": "done", "title": "시간이 다 되면", "when": "남은 시간이 0이 된다", "then": ["화면이 \"이용 시간이 끝났어요\"로 바뀌고 자리는 다음 사람에게 풀린다", "별도 벌칙·사전 알림 없음 + \"오늘 다시 예약할 수 있어요\""], "refs": ["RSV-604", "SYS-101", "SYS-102"], "given": []}, {"id": "J3.3-2", "status": "done", "title": "밤에 걸쳐 앉아 있으면", "given": ["밤 11시에 예약했다"], "when": "자정이 지난다", "then": ["예약된 2시간(새벽 1시까지)은 보장된다 — 끊기지 않는다"], "refs": ["SYS-203"]}], "given": [], "subtree_count": 2}, {"id": "J3.4", "title": "일찍 일어나기 — 자리 비우기와 재예약", "scenarios": [{"id": "J3.4-1", "status": "done", "title": "자리 비우기", "when": "[자리 비우기] → \"자리를 비울까요? 예약이 취소돼요\" → [비우기]", "then": ["\"이용해주셔서 감사해요\"와 함께 메인으로", "자리는 즉시 다음 사람에게 풀린다"], "refs": ["RSV-602", "RSV-603"], "given": []}, {"id": "J3.4-2", "status": "done", "title": "이따가 또 오고 싶으면", "given": ["아까 자리를 비웠다 (또는 2시간이 끝났다)"], "when": "빈 자리의 QR을 다시 찍어 예약 흐름에 들어간다", "then": ["재인증 없이 \"오늘 인증 완료\" 상태에서 바로 이 자리 확정으로", "오늘 영수증 하나로 하루 종일 몇 번이든 (단, 동시에 한 자리만)"], "refs": ["RSV-701", "RSV-702"]}, {"id": "J3.4-3", "status": "done", "title": "남의 예약은 못 건드림", "when": "누가 내 예약 링크를 알아내 자기 폰에서 취소를 시도한다", "then": ["안 된다. 예약은 만든 폰에서만 보이고 취소된다"], "refs": ["RSV-801", "RSV-802"], "given": []}], "given": [], "subtree_count": 3}, {"id": "J3.5", "title": "다시 들어왔을 때 — 재진입 (D-28)", "scenarios": [{"id": "J3.5-1", "status": "done", "title": "이용 중에 다시 들어오면", "given": ["내 active 예약(A3)이 있다"], "when": "자리 QR 재스캔이나 앱 재오픈으로 다시 들어온다", "then": ["무엇보다 먼저 \"이용 중 · A3 · [내 자리 보기]\"가 뜬다", "도착 화면·잡기 CTA는 그리지 않는다 — 이미 이용 중이니까"], "refs": ["RSV-901", "MAIN-301"]}, {"id": "J3.5-2", "status": "done", "title": "이용 중에 다른 자리 QR을 찍으면", "given": ["내 active 예약(A3)이 있는데 다른 빈 자리 B1의 QR을 찍었다"], "when": "사이트가 열린다", "then": ["\"이용 중 · A3\" 화면 그대로, \"한 번에 한 자리만 이용할 수 있어요 — 옮기려면 지금 자리를 비운 뒤 그 자리 QR을 다시 찍어주세요\"", "새 예약은 만들어지지 않는다 (한 번에 한 자리)"], "refs": ["RSV-902", "MAIN-302"]}, {"id": "J3.5-3", "status": "done", "title": "이용이 끝난 뒤 다시 오면", "given": ["직전 예약이 만료·취소로 끝났고, 오늘 토큰은 아직 유효하다"], "when": "자리 QR로 다시 들어온다", "then": ["도착 화면 위에 \"이전 이용이 끝났어요 · 이 자리를 다시 잡을 수 있어요\" 안내", "[이 자리 잡기] → \"오늘 인증 완료\"로 통과 → 재인증 없이 재예약"], "refs": ["RSV-903", "MAIN-303"]}, {"id": "J3.5-4", "status": "done", "title": "이용도 끝나고 토큰도 만료됐으면", "given": ["직전 예약이 끝났고 자정이 지나 토큰까지 만료됐다"], "when": "자리 QR로 다시 와 예약을 시도한다", "then": ["\"이전 이용이 끝났어요\" 안내는 뜨지만, 예약하려면 오늘 영수증으로 다시 인증해야 한다", "영수증 하나 = 하루 이용권"], "refs": ["RSV-904"]}], "given": [], "subtree_count": 4}], "subtree_count": 12}, {"id": "J4", "title": "방명록 — 누구나, 익명으로", "given": ["방명록 화면에 왔다 (메인/갈림길/예약 완료 어디서든 진입. 인증·예약 안 했어도 됨)"], "children": [{"id": "J4.1", "title": "읽기", "scenarios": [{"id": "J4.1-1", "status": "done", "title": "구경", "when": "목록을 본다", "then": ["\"익명 방문자 · 10분 전\" 카드들이 최신순", "내리면 10개씩 계속. 끝에 도달하면 더 안 나온다"], "refs": ["GB-501", "GB-504", "GB-505", "GB-507"], "given": []}, {"id": "J4.1-2", "status": "done", "title": "아직 아무도 안 썼으면", "when": "목록이 빈 채로 열린다", "then": ["\"아직 등록된 방명록이 없어요\" — 첫 글의 주인공이 되라는 뜻"], "refs": ["GB-502"], "given": []}, {"id": "J4.1-3", "status": "done", "title": "안 불러와지면", "when": "목록 로딩이 실패한다", "then": ["\"불러오지 못했어요\" + [다시 시도]"], "refs": ["GB-503"], "given": []}], "given": [], "subtree_count": 3}, {"id": "J4.2", "title": "쓰기", "given": ["위쪽 입력창에 쓸 참이다. placeholder: \"오늘 카페 A에서 커피 사고 여기서 책 읽었어요…\""], "scenarios": [{"id": "J4.2-1", "status": "done", "title": "기본 글", "when": "내용을 쓰고(최대 500자, 글자수 카운터 보임) [게시하기]", "then": ["\"익명 방문자\"로 즉시 목록 맨 위에 뜬다", "입력창은 비워진다"], "refs": ["GB-101", "GB-104", "GB-401"], "given": []}, {"id": "J4.2-2", "status": "done", "title": "별점 곁들이기 (선택)", "when": "[별점 추가] → 별 1~5개 중 탭", "then": ["글에 별점이 함께 저장된다", "선택한 별을 다시 누르면 별점 없이 글만"], "refs": ["GB-201", "GB-202", "GB-203"], "given": []}, {"id": "J4.2-3", "status": "done", "title": "맛집 태그 곁들이기 (선택)", "when": "[맛집 추가] → 참여 상점 목록에서 고른다 (최대 5개)", "then": ["고른 가게가 칩으로 붙는다. 칩의 X로 뺄 수 있다", "6개째는 \"맛집 태그는 5개까지 붙일 수 있어요\""], "refs": ["GB-301", "GB-302", "GB-303", "GB-304"], "given": []}, {"id": "J4.2-4", "status": "done", "title": "안 되는 것들", "when": "빈 글/공백만 · 연속 도배 · 게시 실패 · 코드 장난을 각각 시도한다", "then": ["빈 글/공백만 → 게시 버튼이 안 눌린다", "방금 쓰고 또 바로 쓰면 → \"잠시 후 다시 써주세요\" (1분에 1개)", "게시가 실패하면 → 쓴 내용은 그대로. 다시 누르면 됨", "코드를 써넣어도 글자로만 보인다. 화면을 깨뜨릴 수 없다"], "refs": ["GB-102", "GB-103", "GB-403", "GB-402", "GB-601", "SYS-503"], "given": []}, {"id": "J4.2-5", "status": "done", "title": "지워질 수도 있다", "given": ["욕설·광고를 썼다"], "when": "운영진이 발견한다", "then": ["운영진이 지운다. 지워진 글은 모두의 목록에서 사라진다"], "refs": ["GB-603", "ADM-501"]}], "subtree_count": 5}], "subtree_count": 8}, {"id": "J5", "title": "하루의 끝, 다음 날", "given": ["어제 이 서비스를 썼던 손님이다"], "scenarios": [{"id": "J5-1", "status": "done", "title": "자정이 넘으면 전부 리셋", "when": "밤 12시(한국 시간)가 지난다", "then": ["어제의 인증은 소멸, \"오늘 방문\" 카운트는 0부터", "진행 중이던 예약 2시간만 예외적으로 보장 (J3.3-2)"], "refs": ["SYS-201", "SYS-204", "MAIN-504"], "given": []}, {"id": "J5-2", "status": "done", "title": "다음 날 다시 오면", "when": "오늘 또 참여 상점에서 사 먹고 영수증으로 인증한다", "then": ["J2가 처음부터 다시 — 매일의 소비가 매일의 이용권이 되는 순환", "이게 이 서비스가 상권에 주는 선물이다"], "refs": ["VF-803"], "given": []}], "subtree_count": 2}, {"id": "J6", "title": "무대 뒤 — 운영진 (원격 모니터링)", "given": ["나는 행쇼 운영진이다. 현장이 아닌 곳에서 폰/노트북으로 관리자 화면에 로그인했다 — 공간은 무인"], "scenarios": [{"id": "J6-1", "status": "done", "title": "사후 감사 — 통과시킨 것들을 뒤에서 확인", "when": "\"확인 필요\" 목록을 훑는다 (영수증 사진 + 자동 판독이 왜 애매했는지 표시)", "then": ["문제없으면 넘기고, 가짜로 판정하면 그 인증을 무효화한다", "무효화하면 연결된 예약도 풀린다 — 손님 플로우를 막은 적은 한 번도 없다 (선통과·후정리)", "운영진 둘이 동시에 같은 건을 처리해도 한 번만 반영된다"], "refs": ["ADM-201", "ADM-211", "ADM-212", "ADM-213", "VF-504"], "given": []}, {"id": "J6-2", "status": "done", "title": "원격 자리 운영", "when": "비 예보를 보고 B열을 원격으로 닫거나, 오래 방치된 자리를 수동으로 푼다", "then": ["닫은 자리는 손님 화면에 \"운영 중지\"로 보인다", "푼 자리는 즉시 예약 가능해진다"], "refs": ["ADM-301", "ADM-402", "ADM-404", "RSV-203"], "given": []}, {"id": "J6-3", "status": "done", "title": "청소와 현황", "when": "부적절한 방명록을 지우고, 상점을 추가/수정하고, 오늘 통계를 본다", "then": ["삭제된 글은 모두의 목록에서 사라진다", "통계에 오늘 방문·인증·좌석 현황이 보인다"], "refs": ["ADM-501", "ADM-601", "ADM-701"], "given": []}], "subtree_count": 3}], "subtree_count": 60}, "total": 60}</script>
+<script>
+const DATA = JSON.parse(document.getElementById('data').textContent);
+const $ = (s, el=document) => el.querySelector(s);
+const $$ = (s, el=document) => [...el.querySelectorAll(s)];
+
+document.title = DATA.meta.title || DATA.meta.project || 'Scenarios';
+$('#title').textContent = document.title;
+let nodeCount = 0;
+(function walk(n){ nodeCount++; (n.children||[]).forEach(walk); })(DATA.root);
+$('#stats').textContent = `${nodeCount} nodes · ${DATA.total} scenarios`;
+
+function el(tag, cls, text){
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text;
+  return e;
+}
+
+/* ═══ render tree ═══ */
+function renderScenario(s){
+  const card = el('article','card');
+  card.id = s.id;
+  card.dataset.search = [s.id, s.title, s.when, ...(s.given||[]), ...(s.then||[]), ...(s.refs||[])].join(' ').toLowerCase();
+
+  const head = el('div','chead');
+  const idBtn = el('button','sid mono', s.id);
+  idBtn.title = 'Copy link';
+  idBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    history.replaceState(null,'','#'+s.id);
+    navigator.clipboard?.writeText(location.href).catch(()=>{});
+    idBtn.textContent = 'copied';
+    setTimeout(()=> idBtn.textContent = s.id, 900);
+  });
+  head.append(idBtn, el('span','stitle', s.title));
+  if ((s.refs||[]).length){
+    const refs = el('span','refs');
+    s.refs.forEach(r => refs.append(el('span','ref mono', r)));
+    head.append(refs);
+  }
+  card.append(head);
+
+  const gwt = el('div','gwt');
+  if ((s.given||[]).length){
+    const gb = el('div','gblock');
+    gb.append(el('span','glabel','GIVEN'));
+    s.given.forEach(g => gb.append(el('div', null, g)));
+    gwt.append(gb);
+  }
+  const wb = el('div','wblock');
+  wb.append(el('span','glabel','WHEN'));
+  wb.append(Object.assign(el('p'), {textContent: s.when}));
+  gwt.append(wb);
+  const tb = el('div','tblock');
+  tb.append(el('span','glabel','THEN'));
+  (s.then||[]).forEach(t => tb.append(el('div', null, t)));
+  gwt.append(tb);
+  card.append(gwt);
+
+  card.addEventListener('mouseenter', () => tracePath(card, true));
+  card.addEventListener('mouseleave', () => tracePath(card, false));
+  return card;
+}
+
+function renderNode(node, depth){
+  const branch = el('div','branch');
+  branch.dataset.depth = depth;
+  branch.dataset.id = node.id;
+
+  const box = el('div','nbox');
+  box.id = 'n-' + node.id;
+  box.tabIndex = 0;
+  box.dataset.search = [node.id, node.title, ...(node.given||[])].join(' ').toLowerCase();
+  box.append(el('div','nid mono', node.id));
+  box.append(el('div','ntitle', node.title));
+  if ((node.given||[]).length){
+    const g = el('div','ngiven');
+    node.given.forEach(t => g.append(el('div', null, t)));
+    box.append(g);
+  }
+  if (node.subtree_count) box.append(el('span','count', node.subtree_count));
+  branch.append(box);
+
+  const kids = el('div','kids');
+  (node.scenarios||[]).forEach(s => kids.append(renderScenario(s)));
+  (node.children||[]).forEach(c => kids.append(renderNode(c, depth+1)));
+  if (kids.children.length) branch.append(kids);
+
+  const toggle = () => { if (kids.children.length) foldToggle(branch, box); };
+  box.addEventListener('click', e => { if (!dragMoved) toggle(); });
+  box.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle(); } });
+  return branch;
+}
+
+const canvas = $('#canvas'), world = $('#world'), stage = $('#stage'),
+      tree = $('#tree'), edges = $('#edges');
+tree.append(renderNode(DATA.root, 0));   /* default: fully expanded */
+
+/* ═══ camera (pan/zoom via transform — figma-style) ═══ */
+let cam = { x:0, y:0, s:1 };
+function applyCam(){
+  world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`;
+  $('#zoomVal').textContent = Math.round(cam.s * 100) + '%';
+  updateViewportRect();
+}
+function zoomAt(factor, cx, cy){   /* cx,cy: client coords */
+  const s2 = Math.min(2.5, Math.max(.15, cam.s * factor));
+  const r = canvas.getBoundingClientRect();
+  const px = cx - r.left, py = cy - r.top;
+  cam.x = px - (px - cam.x) * (s2 / cam.s);
+  cam.y = py - (py - cam.y) * (s2 / cam.s);
+  cam.s = s2;
+  applyCam();
+}
+function fit(){
+  /* fit WIDTH — 세로로 긴 트리에서 전체-fit은 글자가 사라진다. 가로만 맞추고 위에서 시작 */
+  const w = stage.offsetWidth;
+  cam.s = Math.min(1, Math.max(.3, (canvas.clientWidth - 60) / w));
+  cam.x = (canvas.clientWidth - w * cam.s) / 2;
+  cam.y = 12;
+  applyCam();
+}
+function fitAll(){
+  const w = stage.offsetWidth, h = stage.offsetHeight;
+  cam.s = Math.max(.1, Math.min(canvas.clientWidth / w, canvas.clientHeight / h) * .97);
+  cam.x = (canvas.clientWidth - w * cam.s) / 2;
+  cam.y = (canvas.clientHeight - h * cam.s) / 2;
+  applyCam();
+}
+function centerOn(elm, targetScale){
+  const r = elm.getBoundingClientRect();      /* current screen rect */
+  const sx = (r.left + r.width/2 - canvas.getBoundingClientRect().left - cam.x) / cam.s;
+  const sy = (r.top + r.height/2 - canvas.getBoundingClientRect().top - cam.y) / cam.s;
+  if (targetScale) cam.s = targetScale;
+  cam.x = canvas.clientWidth/2 - sx * cam.s;
+  cam.y = canvas.clientHeight/2 - sy * cam.s;
+  applyCam();
+}
+
+/* wheel: pinch/ctrl = zoom at cursor, otherwise pan (trackpad two-finger) */
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  if (e.ctrlKey || e.metaKey){
+    zoomAt(Math.exp(-e.deltaY * .01), e.clientX, e.clientY);
+  } else {
+    cam.x -= e.deltaX; cam.y -= e.deltaY; applyCam();
+  }
+}, {passive:false});
+
+/* drag pan (background or space+anywhere) */
+let panning = null, dragMoved = false, spaceHeld = false;
+canvas.addEventListener('pointerdown', e => {
+  const onBg = e.target === canvas || e.target === world || e.target === stage ||
+               e.target === tree || e.target.closest('svg.edges');
+  if (!onBg && !spaceHeld && e.button !== 1) return;
+  panning = { px:e.clientX, py:e.clientY, ox:cam.x, oy:cam.y };
+  dragMoved = false;
+  canvas.setPointerCapture(e.pointerId);
+  canvas.classList.add('panning');
+});
+canvas.addEventListener('pointermove', e => {
+  if (!panning) return;
+  const dx = e.clientX - panning.px, dy = e.clientY - panning.py;
+  if (Math.abs(dx) + Math.abs(dy) > 3) dragMoved = true;
+  cam.x = panning.ox + dx; cam.y = panning.oy + dy;
+  applyCam();
+});
+['pointerup','pointercancel'].forEach(ev => canvas.addEventListener(ev, () => {
+  panning = null; canvas.classList.remove('panning');
+  setTimeout(()=> dragMoved = false, 0);
+}));
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' && document.activeElement.tagName !== 'INPUT'){ spaceHeld = true; e.preventDefault(); }
+});
+document.addEventListener('keyup', e => { if (e.code === 'Space') spaceHeld = false; });
+
+/* ═══ fold with position anchoring (no teleport) ═══ */
+function foldToggle(branch, box){
+  const before = box.getBoundingClientRect();
+  branch.classList.toggle('collapsed');
+  redraw();
+  const after = box.getBoundingClientRect();
+  cam.x += before.left - after.left;
+  cam.y += before.top - after.top;
+  applyCam();
+  redraw();
+}
+
+/* ═══ edges ═══ */
+function stageRect(elm){
+  const s = stage.getBoundingClientRect();
+  const r = elm.getBoundingClientRect();
+  return { x:(r.left - s.left)/cam.s, y:(r.top - s.top)/cam.s, w:r.width/cam.s, h:r.height/cam.s };
+}
+function drawEdges(){
+  edges.innerHTML = '';
+  const frag = document.createDocumentFragment();
+  $$('.branch', tree).forEach(branch => {
+    if (branch.classList.contains('collapsed')) return;
+    const box = branch.querySelector(':scope > .nbox');
+    const kids = branch.querySelector(':scope > .kids');
+    if (!box || !kids) return;
+    const b = stageRect(box);
+    const x1 = b.x + b.w, y1 = b.y + b.h/2;
+    [...kids.children].forEach(kid => {
+      const target = kid.classList.contains('branch') ? kid.querySelector(':scope > .nbox') : kid;
+      const k = stageRect(target);
+      const x2 = k.x, y2 = k.y + k.h/2, mx = (x1 + x2)/2;
+      const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+      p.setAttribute('d', `M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`);
+      frag.append(p);
+    });
+  });
+  edges.append(frag);
+}
+
+/* ═══ minimap ═══ */
+const mm = $('#minimap'), mmc = $('#mmc'), mmvp = $('#mmvp');
+let mmScale = 1;
+let mmW = 190, mmH = 190;
+function drawMinimap(){
+  const W = stage.offsetWidth, H = stage.offsetHeight;
+  mmScale = Math.min(190 / W, 240 / H);
+  mmW = Math.max(40, W * mmScale); mmH = Math.max(40, H * mmScale);
+  mm.style.width = mmW + 'px';
+  const dpr = devicePixelRatio || 1;
+  const cssW = mmW, cssH = mmH;
+  mmc.width = cssW * dpr; mmc.height = cssH * dpr;
+  mmc.style.width = cssW + 'px';
+  mmc.style.height = cssH + 'px';
+  const ctx = mmc.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
+  const styles = getComputedStyle(document.documentElement);
+  const cLine = styles.getPropertyValue('--edge').trim();
+  const cInk = styles.getPropertyValue('--muted').trim();
+  const cAcc = styles.getPropertyValue('--accent').trim();
+  $$('.card', tree).forEach(c => {
+    if (c.offsetParent === null) return;
+    const r = stageRect(c);
+    ctx.fillStyle = c.classList.contains('hit') ? cAcc : cLine;
+    ctx.fillRect(r.x * mmScale, r.y * mmScale, Math.max(2, r.w * mmScale), Math.max(1.5, r.h * mmScale));
+  });
+  $$('.nbox', tree).forEach(n => {
+    if (n.offsetParent === null) return;
+    const r = stageRect(n);
+    ctx.fillStyle = cInk;
+    ctx.fillRect(r.x * mmScale, r.y * mmScale, Math.max(2, r.w * mmScale), Math.max(1.5, r.h * mmScale));
+  });
+  updateViewportRect();
+}
+function updateViewportRect(){
+  /* visible stage area in stage coords, clamped to the minimap box */
+  const vx = (-cam.x) / cam.s, vy = (-cam.y) / cam.s;
+  const vw = canvas.clientWidth / cam.s, vh = canvas.clientHeight / cam.s;
+  const l = Math.max(0, Math.min(mmW - 4, vx * mmScale));
+  const t = Math.max(0, Math.min(mmH - 4, vy * mmScale));
+  mmvp.style.left = l + 'px';
+  mmvp.style.top = t + 'px';
+  mmvp.style.width = Math.max(4, Math.min(mmW - l, vw * mmScale)) + 'px';
+  mmvp.style.height = Math.max(4, Math.min(mmH - t, vh * mmScale)) + 'px';
+}
+function mmNavigate(e){
+  const r = mm.getBoundingClientRect();
+  const sx = (e.clientX - r.left) / mmScale, sy = (e.clientY - r.top) / mmScale;
+  cam.x = canvas.clientWidth/2 - sx * cam.s;
+  cam.y = canvas.clientHeight/2 - sy * cam.s;
+  applyCam();
+}
+mm.addEventListener('pointerdown', e => { mm.setPointerCapture(e.pointerId); mmNavigate(e); mm.dataset.drag = '1'; });
+mm.addEventListener('pointermove', e => { if (mm.dataset.drag) mmNavigate(e); });
+['pointerup','pointercancel'].forEach(ev => mm.addEventListener(ev, () => delete mm.dataset.drag));
+
+function redraw(){ drawEdges(); drawMinimap(); }
+
+/* ═══ hover path trace ═══ */
+function tracePath(card, on){
+  let b = card.closest('.branch');
+  while (b){
+    b.querySelector(':scope > .nbox')?.classList.toggle('onpath', on);
+    b = b.parentElement.closest('.branch');
+  }
+}
+
+/* ═══ toolbar ═══ */
+$('#expandAll').addEventListener('click', () => {
+  $$('.branch').forEach(b => b.classList.remove('collapsed'));
+  redraw(); fit();
+});
+$('#collapseAll').addEventListener('click', () => {
+  $$('.branch').forEach(b => { if (+b.dataset.depth >= 1) b.classList.add('collapsed'); });
+  redraw(); fit();
+});
+const detailBtn = $('#detailToggle');
+detailBtn.addEventListener('click', () => {
+  const off = document.body.classList.toggle('detail-off');
+  detailBtn.setAttribute('aria-pressed', String(!off));
+  redraw();
+});
+$('#zoomIn').addEventListener('click', () => zoomAt(1.2, canvas.clientWidth/2, canvas.clientHeight/2 + canvas.getBoundingClientRect().top));
+$('#zoomOut').addEventListener('click', () => zoomAt(1/1.2, canvas.clientWidth/2, canvas.clientHeight/2 + canvas.getBoundingClientRect().top));
+$('#zoomFit').addEventListener('click', fit);
+$('#zoomVal').addEventListener('click', () => { cam.s = 1; applyCam(); });
+document.addEventListener('keydown', e => {
+  if (document.activeElement.tagName === 'INPUT') return;
+  if (e.key === '1') fit();
+  if (e.key === '2') fitAll();
+  if (e.key === '0'){ cam.s = 1; applyCam(); }
+  if (e.key === '+' || e.key === '=') zoomAt(1.2, innerWidth/2, innerHeight/2);
+  if (e.key === '-') zoomAt(1/1.2, innerWidth/2, innerHeight/2);
+});
+
+/* ═══ search (dim off-path) ═══ */
+const q = $('#q'), hits = $('#hits'), sbox = $('#searchbox'), empty = $('#empty');
+const allCards = $$('.card'), allBoxes = $$('.nbox');
+function applyFilter(){
+  const query = q.value.trim().toLowerCase();
+  sbox.classList.toggle('active', !!query);
+  document.body.classList.toggle('dimmable', !!query);
+  allCards.forEach(c => c.classList.remove('dim','hit'));
+  allBoxes.forEach(n => n.classList.remove('dim'));
+  if (!query){ hits.textContent=''; empty.style.display='none'; drawMinimap(); return; }
+  let shown = 0;
+  const keep = new Set();
+  allCards.forEach(c => {
+    if (c.dataset.search.includes(query)){
+      shown++; c.classList.add('hit');
+      let b = c.closest('.branch');
+      while (b){ keep.add(b.querySelector(':scope > .nbox')); b = b.parentElement.closest('.branch'); }
+    } else c.classList.add('dim');
+  });
+  allBoxes.forEach(n => {
+    if (n.dataset.search.includes(query)){
+      keep.add(n);
+      $$('.card', n.closest('.branch')).forEach(c => {
+        if (c.classList.contains('dim')){ c.classList.remove('dim'); shown++; }
+      });
+      let b = n.closest('.branch').parentElement.closest('.branch');
+      while (b){ keep.add(b.querySelector(':scope > .nbox')); b = b.parentElement.closest('.branch'); }
+    }
+  });
+  allBoxes.forEach(n => { if (!keep.has(n)) n.classList.add('dim'); });
+  hits.textContent = `${shown}/${DATA.total}`;
+  empty.style.display = shown ? 'none' : 'block';
+  drawMinimap();
+}
+let deb;
+q.addEventListener('input', () => { clearTimeout(deb); deb = setTimeout(applyFilter, 120); });
+$('#clearq').addEventListener('click', () => { q.value=''; applyFilter(); q.focus(); });
+document.addEventListener('keydown', e => {
+  if (e.key === '/' && document.activeElement !== q){ e.preventDefault(); q.focus(); }
+  if (e.key === 'Escape' && document.activeElement === q){ q.value=''; applyFilter(); q.blur(); }
+});
+
+/* ═══ Copy as SVG (paste into Figma) ═══ */
+function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function colorOf(c){
+  if (!c || c === 'transparent' || /rgba\(\s*\d+\s*,\s*\d+\s*,\s*\d+\s*,\s*0\s*\)/.test(c)) return null;
+  return c;
+}
+function textLines(node){
+  /* char-level rects grouped by line top → [{text,x,y,fontSize}] */
+  const text = node.textContent;
+  if (!text.trim()) return [];
+  const range = document.createRange();
+  const lines = [];
+  let cur = null;
+  for (let i = 0; i < text.length; i++){
+    range.setStart(node, i); range.setEnd(node, i + 1);
+    const r = range.getBoundingClientRect();
+    if (!r.width && !r.height) continue;
+    const top = Math.round(r.top);
+    if (!cur || Math.abs(top - cur.top) > 2){
+      cur = { top, left: r.left, bottom: r.bottom, chars: [] };
+      lines.push(cur);
+    }
+    cur.chars.push(text[i]);
+    cur.bottom = Math.max(cur.bottom, r.bottom);
+  }
+  return lines.map(l => ({ text: l.chars.join(''), left: l.left, top: l.top, bottom: l.bottom }));
+}
+function exportSVG(){
+  const sr = stage.getBoundingClientRect();
+  const X = v => ((v - sr.left) / cam.s).toFixed(1);
+  const Y = v => ((v - sr.top) / cam.s).toFixed(1);
+
+  function rectFor(elm){
+    const cs = getComputedStyle(elm);
+    const r = elm.getBoundingClientRect();
+    if (r.width < 1 || r.height < 1) return '';
+    const bg = colorOf(cs.backgroundColor);
+    const bw = parseFloat(cs.borderTopWidth) || 0;
+    const bc = bw ? colorOf(cs.borderTopColor) : null;
+    if (!bg && !bc) return '';
+    const rx = (parseFloat(cs.borderTopLeftRadius) || 0).toFixed(1);
+    return `<rect x="${X(r.left)}" y="${Y(r.top)}" width="${(r.width/cam.s).toFixed(1)}" height="${(r.height/cam.s).toFixed(1)}" rx="${rx}"`
+      + ` fill="${bg || 'none'}"`
+      + (bc ? ` stroke="${bc}" stroke-width="${(bw/cam.s).toFixed(1)}"` : '')
+      + (bc && cs.borderTopStyle === 'dashed' ? ' stroke-dasharray="4 3"' : '')
+      + '/>';
+  }
+  function textsFor(scope){
+    const parts = [];
+    const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+    let tn;
+    while ((tn = walker.nextNode())){
+      const parent = tn.parentElement;
+      if (!parent || parent.offsetParent === null) continue;
+      const cs = getComputedStyle(parent);
+      const fs = parseFloat(cs.fontSize);
+      const fam = cs.fontFamily.split(',')[0].replace(/["']/g, '');
+      textLines(tn).forEach(l => {
+        if (!l.text.trim()) return;
+        const baseline = ((l.top + l.bottom) / 2 - sr.top) / cam.s + fs * 0.35;
+        parts.push(`<text x="${X(l.left)}" y="${baseline.toFixed(1)}" font-family="${esc(fam)}, sans-serif"`
+          + ` font-size="${(fs/cam.s).toFixed(1)}" font-weight="${cs.fontWeight}" fill="${cs.color}"`
+          + ` letter-spacing="${cs.letterSpacing === 'normal' ? '0' : cs.letterSpacing}">${esc(l.text)}</text>`);
+      });
+    }
+    return parts;
+  }
+  /* 요소 서브트리 하나(카드/노드박스) → 도형+텍스트를 담은 그룹 */
+  function groupFor(elm, name){
+    const parts = [rectFor(elm)];
+    $$(':scope *', elm).forEach(e => { if (e.offsetParent !== null) parts.push(rectFor(e)); });
+    parts.push(...textsFor(elm));
+    return `<g id="${esc(name)}">${parts.filter(Boolean).join('')}</g>`;
+  }
+  /* branch → 피그마 그룹 트리로 재귀 직렬화 */
+  function groupForBranch(branch){
+    const id = branch.dataset.id;
+    const box = branch.querySelector(':scope > .nbox');
+    const kids = branch.querySelector(':scope > .kids');
+    const title = box?.querySelector('.ntitle')?.textContent || '';
+    const parts = [groupFor(box, `${id} node`)];
+    if (kids && !branch.classList.contains('collapsed')){
+      [...kids.children].forEach(kid => {
+        if (kid.classList.contains('branch')) parts.push(groupForBranch(kid));
+        else {
+          const sTitle = kid.querySelector('.stitle')?.textContent || '';
+          parts.push(groupFor(kid, `${kid.id} ${sTitle}`));
+        }
+      });
+    }
+    return `<g id="${esc(id + ' ' + title)}">${parts.join('\n')}</g>`;
+  }
+
+  const edgeParts = $$('svg.edges path').map(p =>
+    `<path d="${p.getAttribute('d')}" fill="none" stroke="${getComputedStyle(p).stroke}" stroke-width="1.5"/>`);
+  const rootBranch = tree.querySelector(':scope > .branch');
+  const w = (sr.width / cam.s).toFixed(0), h = (sr.height / cam.s).toFixed(0);
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">\n`
+    + `<g id="edges">${edgeParts.join('')}</g>\n`
+    + groupForBranch(rootBranch)
+    + `\n</svg>`;
+}
+const copyBtn = $('#copySvg');
+copyBtn.addEventListener('click', async () => {
+  copyBtn.textContent = '…';
+  await new Promise(r => setTimeout(r, 20));   /* let label paint */
+  const svg = exportSVG();
+  let ok = false;
+  try { await navigator.clipboard.writeText(svg); ok = true; } catch(e){}
+  if (!ok){
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([svg], {type:'image/svg+xml'}));
+    a.download = (document.title || 'scenarios') + '.svg';
+    a.click();
+  }
+  copyBtn.textContent = ok ? 'Copied — paste in Figma' : 'Downloaded .svg';
+  setTimeout(() => copyBtn.textContent = 'Copy SVG', 2200);
+});
+
+/* ═══ boot ═══ */
+addEventListener('resize', () => { updateViewportRect(); });
+if (document.fonts?.ready) document.fonts.ready.then(() => { redraw(); fit(); });
+requestAnimationFrame(() => { redraw(); fit();
+  if (location.hash){
+    const t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (t){
+      let b = t.closest('.branch');
+      while (b){ b.classList.remove('collapsed'); b = b.parentElement.closest('.branch'); }
+      redraw();
+      centerOn(t, 1);
+      t.classList.add('flash');
+      setTimeout(()=> t.classList.remove('flash'), 1500);
+    }
+  }
+});
+</script>
+</body>
+</html>

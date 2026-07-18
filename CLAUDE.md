@@ -104,7 +104,10 @@ stop-island/
 ├── frontend/                    ← Svelte SPA (Vite + Tailwind)
 ├── backend/                     ← FastAPI + SQLite
 ├── .local/                      ← 비개발 맥락 (git 제외 — 기획/발표/피드백 등)
-└── .claude/skills/figma-read/   ← Figma REST API 읽기 스킬
+└── .claude/
+    ├── rules/                   ← 경로 기반 스코프 룰 (FE/BE/워크플로우)
+    ├── skills/                  ← 재사용 워크플로우 (create-issue, figma-read 등)
+    └── agents/                  ← 서브에이전트 페르소나 (issue-creator 등)
 ```
 
 ## 작업 방식 — GitHub 이슈 기반

@@ -1,4 +1,5 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///app.db"
@@ -8,6 +9,17 @@ SQLALCHEMY_DATABASE_URL = "sqlite:///app.db"
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
 )
+
+
+@event.listens_for(Engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record) -> None:
+    # SQLite는 외래키 제약을 커넥션마다 명시적으로 켜야 강제된다(기본 OFF).
+    # verify_token FK·shop_id FK 등이 실제로 검사되도록 모든 커넥션에 PRAGMA를 적용한다.
+    # Engine 전역 리스너로 걸어야 테스트용 in-memory 엔진에도 동일하게 적용된다.
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.close()
+
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
