@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -16,9 +18,17 @@ from app.routers import (
 
 app = FastAPI(title="멈춰, 섬! API")
 
+# 허용 오리진은 환경변수 CORS_ORIGINS(콤마 구분)로 외부화한다.
+# 기본값은 로컬 개발 프론트. 운영에서는 Vercel 프론트 도메인을 넣는다.
+_cors_origins = [
+    o.strip()
+    for o in os.environ.get("CORS_ORIGINS", "http://localhost:5173").split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

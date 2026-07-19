@@ -1,8 +1,13 @@
+import os
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 
-SQLALCHEMY_DATABASE_URL = "sqlite:///app.db"
+# DB 경로는 환경변수로 외부화한다. 기본값은 기존 동작(CWD의 app.db) 그대로라
+# 로컬/테스트는 영향 없음. 컨테이너에서는 마운트된 볼륨의 절대경로를 넣어
+# 컨테이너 재생성에도 데이터가 보존되게 한다. (예: sqlite:////data/app.db)
+SQLALCHEMY_DATABASE_URL = os.environ.get("DATABASE_URL", "sqlite:///app.db")
 
 # check_same_thread=False: SQLite 기본 제약(단일 스레드) 해제.
 # FastAPI는 요청마다 다른 스레드에서 세션을 쓸 수 있어서 필요.
