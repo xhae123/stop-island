@@ -17,10 +17,12 @@ from app.ocr.engine import (
     OcrUnavailable,
     ReceiptEngine,
 )
+from app.ocr.http_engine import HttpReceiptEngine, build_http_engine_from_env
 
 __all__ = [
     "FakeReceiptEngine",
     "GeminiReceiptEngine",
+    "HttpReceiptEngine",
     "NotReceiptError",
     "OcrError",
     "OcrResult",
@@ -29,8 +31,18 @@ __all__ = [
     "get_receipt_engine",
 ]
 
+
+def _build_default_engine() -> ReceiptEngine:
+    """RECEIPT_CORE_URL이 있으면 외부 코어에 위임(HttpReceiptEngine),
+    없으면 기존 인프로세스 Gemini seam을 그대로 쓴다(기본 동작 불변)."""
+    http_engine = build_http_engine_from_env()
+    if http_engine is not None:
+        return http_engine
+    return GeminiReceiptEngine()
+
+
 # 앱 전역에서 재사용하는 단일 엔진 인스턴스. 생성자는 실패하지 않는다(seam).
-_default_engine: ReceiptEngine = GeminiReceiptEngine()
+_default_engine: ReceiptEngine = _build_default_engine()
 
 
 def get_receipt_engine() -> ReceiptEngine:

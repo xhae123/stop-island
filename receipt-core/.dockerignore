@@ -1,0 +1,5 @@
+*_test.go
+.env
+Dockerfile
+docker-compose.yml
+.dockerignore

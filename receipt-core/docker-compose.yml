@@ -1,0 +1,25 @@
+# 영수증 코어 서버 — 여러 서비스가 API로 소비하는 standalone 코어.
+# 공용 엣지 구조에 붙는다: edge-nginx 가 서브도메인(예: receipt.leafeep.com)을
+# receipt-core:8000 으로 프록시한다. 소비자 인증은 X-API-Key(앱 레벨).
+#
+# 배포(노드 services/receipt-core/ 에서): docker compose up -d --build
+#   그 뒤 /home/ubuntu/edge/ 에서 ./scripts/add-service.sh <도메인> receipt-core:8000
+#
+# 무상태(v1)라 볼륨 없음. 데이터스토어가 필요해지면(글로벌 dedup 등) v2에서 추가.
+services:
+  receipt-core:
+    build: .
+    image: receipt-core
+    container_name: receipt-core
+    restart: unless-stopped
+    expose:
+      - "8000"                 # 호스트 노출 없음. edge-nginx만 접근
+    env_file:
+      - .env
+    mem_limit: 256m            # OCR/이미지 폭주가 노드를 굶기지 못하게 cgroup 캡
+    networks:
+      - edge
+
+networks:
+  edge:
+    external: true             # 노드 공용 엣지 네트워크(edge-nginx와 공유)
